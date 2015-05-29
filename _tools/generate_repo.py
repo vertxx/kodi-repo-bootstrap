@@ -15,80 +15,74 @@ import datetime
 from ConfigParser import SafeConfigParser
 
 class Generator:
-    global output
-    global rootdir
-    global sep
-    global config
     
-    sep=os.path.sep
-       
-    """
-       Load the configuration
-    """
-    config = SafeConfigParser()
-    config.read('config.ini')
-    addonid=config.get('addon', 'id')
-    output="_" + config.get('locations', 'output')
-    
-    os.chdir(os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)))
-
-    
-    if not os.path.exists(output):
-        os.makedirs(output)
-
     """
         Generates a new addons.xml file from each addons addon.xml file
-        and a new addons.xml.md5 hash file. Must be run from the root of
+        and a new addons.xml.md5 hash file. Must be run from a subdirectory (eg. _tools) of
         the checked-out repo. Only handles single depth folder structure.
     """
-
+    
     def __init__( self ):
-
-        # generate files
-        if not os.path.isfile(self.addonid + sep + "addon.xml"):
-            self._generate_repo_files()
+       
+        """
+        Load the configuration
+        """
+        self.config = SafeConfigParser()
+        self.config.read('config.ini')
         
+        self.tools_path=os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__))))
+        self.output="_" + self.config.get('locations', 'output')
+        
+        # travel path one up
+        os.chdir(os.path.abspath(os.path.join(self.tools_path, os.pardir)))
+        
+        # generate files
+        self._pre_run()
+        self._generate_repo_files()
         self._generate_addons_file()
         self._generate_md5_file()
         self._generate_zip_files()
         # notify user
         print "Finished updating addons xml, md5 files and zipping addons"
+        
+    def _pre_run ( self ):
 
+        # create output path if it does not exists
+        if not os.path.exists("_" + self.config.get('locations', 'output')):
+            os.makedirs("_" + self.config.get('locations', 'output'))
 
     def _generate_repo_files ( self ):
+        
+        addonid=self.config.get('addon', 'id')
+        name=self.config.get('addon', 'name')
+        version=self.config.get('addon', 'version')
+        author=self.config.get('addon', 'author')
+        summary=self.config.get('addon', 'summary') 
+        description=self.config.get('addon', 'description')
+        url=self.config.get('locations', 'url')      
+
+        if os.path.isfile(addonid + os.path.sep + "addon.xml"):return
+        
         print "Create repository addon"
         
-        repo_xml = u"""<?xml version="1.0" encoding="UTF-8"?>
-        <addon id="{addonid}" name="{name}" version="{version}" provider-name="{author}">
-            <requires>
-                <import addon="xbmc.addon" version="12.0.0"/>
-            </requires>
-            <extension point="xbmc.addon.repository" name="{name}">
-                <info compressed="false">{url}{output}addons.xml</info>
-                <checksum>{url}{output}addons.xml.md5</checksum>
-                <datadir zip="true">{url}{output}</datadir>
-                <hashes>false</hashes>
-            </extension>
-            <extension point="xbmc.addon.metadata">
-                <summary>{summary}</summary>
-                <description>{description}</description>
-                <platform>all</platform>
-        </extension>
-        </addon>""".format(
-            addonid=config.get('addon', 'id'), 
-            name=config.get('addon', 'name'), 
-            version=config.get('addon', 'version'), 
-            author=config.get('addon', 'author'), 
-            summary=config.get('addon', 'summary'), 
-            description=config.get('addon', 'description'), 
-            url=config.get('locations', 'url'),
-            output="_" + config.get('locations', 'output') + "/")
+        with open (self.tools_path + os.path.sep + "template.xml", "r") as template:
+            template_xml=template.read()
+        
+        repo_xml = template_xml.format(
+            addonid= addonid,
+            name=name,
+            version=version,
+            author=author,
+            summary=summary,
+            description=description,
+            url=url,
+            output=self.output)
         
         # save file
-        if not os.path.exists(self.addonid):
-            os.makedirs(self.addonid)
+        if not os.path.exists(addonid):
+            os.makedirs(addonid)
             
-        self._save_file( repo_xml.encode( "utf-8" ), file=self.addonid + sep + "addon.xml" )
+        self._save_file( repo_xml.encode( "utf-8" ), file=addonid + os.path.sep + "addon.xml" )
         
 
     def _generate_zip_files ( self ):
@@ -97,7 +91,7 @@ class Generator:
         for addon in addons:
             try:
                 # skip any file or .git folder
-                if ( not os.path.isdir( addon ) or addon == ".git" or addon == output): continue
+                if ( not os.path.isdir( addon ) or addon == ".git" or addon == self.output): continue
                 # create path
                 _path = os.path.join( addon, "addon.xml" )
                 # split lines for stripping
@@ -114,18 +108,18 @@ class Generator:
         filename = path + "-" + version + ".zip"
         try:
             zip = zipfile.ZipFile(filename, 'w')
-            for root, dirs, files in os.walk(path + sep):
+            for root, dirs, files in os.walk(path + os.path.sep):
                 for file in files:
                     zip.write(os.path.join(root, file))
                     
             zip.close()
          
-            if not os.path.exists(output + sep + addonid):
-                os.makedirs(output + sep + addonid)
+            if not os.path.exists(self.output + addonid):
+                os.makedirs(self.output + addonid)
          
-            if os.path.isfile(output + sep + addonid + sep + filename):
-                os.rename(output + sep + addonid + sep + filename, output + sep + addonid + sep + filename + "." + datetime.datetime.now().strftime("%Y%m%d%H%M%S") )
-            shutil.move(filename, output + sep + addonid + sep + filename)
+            if os.path.isfile(self.output + addonid + os.path.sep + filename):
+                os.rename(self.output + addonid + os.path.sep + filename, self.output + addonid + os.path.sep + filename + "." + datetime.datetime.now().strftime("%Y%m%d%H%M%S") )
+            shutil.move(filename, self.output + addonid + os.path.sep + filename)
         except Exception, e:
             print e
 
@@ -159,14 +153,14 @@ class Generator:
         # clean and add closing tag
         addons_xml = addons_xml.strip() + u"\n</addons>\n"
         # save file
-        self._save_file( addons_xml.encode( "utf-8" ), file=output + sep + "addons.xml" )
+        self._save_file( addons_xml.encode( "utf-8" ), file=self.output + "addons.xml" )
 
     def _generate_md5_file( self ):
         try:
             # create a new md5 hash
-            m = md5.new( open(output + sep +  "addons.xml" ).read() ).hexdigest()
+            m = md5.new( open(self.output +  "addons.xml" ).read() ).hexdigest()
             # save file
-            self._save_file( m, file=output + sep + "addons.xml.md5" )
+            self._save_file( m, file=self.output + "addons.xml.md5" )
         except Exception, e:
             # oops
             print "An error occurred creating addons.xml.md5 file!\n%s" % ( e, )
