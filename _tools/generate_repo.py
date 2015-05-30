@@ -1,7 +1,7 @@
 """ repository files and addons.xml generator """
 
 """ Modified by Rodrigo@XMBCHUB to zip plugins/repositories to a "zip" folder """
-""" Modified by BartOtten to also create a repository addon """
+""" Modified by BartOtten: create a repository addon, skip folders without addon.xml, user config file """
 
 """ This file is "as is", without any warranty whatsoever. Use as own risk """
 
@@ -31,7 +31,7 @@ class Generator:
         self.config.read('config.ini')
         
         self.tools_path=os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__))))
-        self.output="_" + self.config.get('locations', 'output')
+        self.output_path="_" + self.config.get('locations', 'output_path')
         
         # travel path one up
         os.chdir(os.path.abspath(os.path.join(self.tools_path, os.pardir)))
@@ -47,9 +47,9 @@ class Generator:
         
     def _pre_run ( self ):
 
-        # create output path if it does not exists
-        if not os.path.exists("_" + self.config.get('locations', 'output')):
-            os.makedirs("_" + self.config.get('locations', 'output'))
+        # create output  path if it does not exists
+        if not os.path.exists(self.output_path):
+            os.makedirs(self.output_path)
 
     def _generate_repo_files ( self ):
         
@@ -76,7 +76,7 @@ class Generator:
             summary=summary,
             description=description,
             url=url,
-            output=self.output)
+            output_path=self.output_path)
         
         # save file
         if not os.path.exists(addonid):
@@ -89,9 +89,13 @@ class Generator:
         addons = os.listdir( "." )
         # loop thru and add each addons addon.xml file
         for addon in addons:
+            # create path
+            _path = os.path.join( addon, "addon.xml" )         
+            #skip path if it has no addon.xml
+            if not os.path.isfile( _path ): continue       
             try:
                 # skip any file or .git folder
-                if ( not os.path.isdir( addon ) or addon == ".git" or addon == self.output): continue
+                if ( not os.path.isdir( addon ) or addon == ".git" or addon == self.output_path or addon == self.tools_path): continue
                 # create path
                 _path = os.path.join( addon, "addon.xml" )
                 # split lines for stripping
@@ -114,12 +118,12 @@ class Generator:
                     
             zip.close()
          
-            if not os.path.exists(self.output + addonid):
-                os.makedirs(self.output + addonid)
+            if not os.path.exists(self.output_path + addonid):
+                os.makedirs(self.output_path + addonid)
          
-            if os.path.isfile(self.output + addonid + os.path.sep + filename):
-                os.rename(self.output + addonid + os.path.sep + filename, self.output + addonid + os.path.sep + filename + "." + datetime.datetime.now().strftime("%Y%m%d%H%M%S") )
-            shutil.move(filename, self.output + addonid + os.path.sep + filename)
+            if os.path.isfile(self.output_path + addonid + os.path.sep + filename):
+                os.rename(self.output_path + addonid + os.path.sep + filename, self.output_path + addonid + os.path.sep + filename + "." + datetime.datetime.now().strftime("%Y%m%d%H%M%S") )
+            shutil.move(filename, self.output_path + addonid + os.path.sep + filename)
         except Exception, e:
             print e
 
@@ -130,11 +134,11 @@ class Generator:
         addons_xml = u"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<addons>\n"
         # loop thru and add each addons addon.xml file
         for addon in addons:
-            try:
-                # skip any file or .git folder
-                if ( not os.path.isdir( addon ) or addon == ".git" ): continue
-                # create path
-                _path = os.path.join( addon, "addon.xml" )
+            # create path
+            _path = os.path.join( addon, "addon.xml" )
+            #skip path if it has no addon.xml
+            if not os.path.isfile( _path ): continue
+            try:               
                 # split lines for stripping
                 xml_lines = open( _path, "r" ).read().splitlines()
                 # new addon
@@ -153,14 +157,14 @@ class Generator:
         # clean and add closing tag
         addons_xml = addons_xml.strip() + u"\n</addons>\n"
         # save file
-        self._save_file( addons_xml.encode( "utf-8" ), file=self.output + "addons.xml" )
+        self._save_file( addons_xml.encode( "utf-8" ), file=self.output_path + "addons.xml" )
 
     def _generate_md5_file( self ):
         try:
             # create a new md5 hash
-            m = md5.new( open(self.output +  "addons.xml" ).read() ).hexdigest()
+            m = md5.new( open(self.output_path +  "addons.xml" ).read() ).hexdigest()
             # save file
-            self._save_file( m, file=self.output + "addons.xml.md5" )
+            self._save_file( m, file=self.output_path + "addons.xml.md5" )
         except Exception, e:
             # oops
             print "An error occurred creating addons.xml.md5 file!\n%s" % ( e, )
